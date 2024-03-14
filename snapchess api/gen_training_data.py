@@ -1,9 +1,12 @@
 import numpy as np
 from selenium import webdriver
 from PIL import Image
-import matplotlib.pyplot as plt
 import os
 from io import BytesIO
+import comp_vision
+import shutil
+
+import helper_functions as hf
 
 # Generate a random FEN notation
 def getRandomFEN():
@@ -70,8 +73,32 @@ for cookie_value in cookie_values:
 
       # Left, Top, Right, Bottom Boundaries
       cropped_image = original_image.crop((420, 180, original_image.width - 752, original_image.height - 270))
-      cropped_image.save(os.path.join(out_folder, f"lichess_{fen.replace('/','-')}.png"))
+      cropped_image.save(os.path.join(out_folder, f"{fen.replace('/','-')}.png"))
       print(f"Cropped screenshot {i + 1}/{N} saved successfully!")
 
     except Exception as e: # Catching errors
       print("An error occurred:", e)
+
+# Directory structure
+input_chessboard_folder = 'training_data_boards'
+output_tile_folder = 'training_data_tiles'
+
+for x in os.listdir(input_chessboard_folder):
+    comp_vision.generateTiles(x, input_chessboard_folder, output_tile_folder)
+
+# Sort images with their labels
+for x in os.listdir(output_tile_folder):
+    # No need to create training data for empty tiles
+    if(hf.extract_label_from_path(x) == '1'):
+       continue
+    
+    source_path = os.path.join(output_tile_folder, x)
+    destination_folder = os.path.join("training_data_tiles_sorted", hf.fen_to_label(hf.extract_fen_from_path(x)))
+    destination_path = os.path.join(destination_folder, x)
+
+    # Check if destination folder exists, create if not
+    if not os.path.exists(destination_folder):
+        os.makedirs(destination_folder)
+
+    # Move the file to the destination folder
+    shutil.copy(source_path, destination_path)

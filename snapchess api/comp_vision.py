@@ -5,85 +5,63 @@ import os
 from PIL import Image
 import scipy.signal
 import cv2
+from rembg import remove
+
+import helper_functions as hf
 
 np.set_printoptions(suppress=True)
 
-# Image path
-img_file = 'image2.png'
-folder = "test_images"
-img = Image.open(f"{folder}/{img_file}")
+img_file = 'test.png'
+input_folder = 'test_images'
 
-# Resize for large images
-if img.size[0] > 2000 or img.size[1] > 2000:
-    new_size = 500.0  # px
-    ratio = new_size / max(img.size[0], img.size[1])
-    print(f"Reducing by factor of {1./ratio:.2g}")
-    img = img.resize((int(img.size[0] * ratio), int(img.size[1] * ratio)), Image.ADAPTIVE)
-    print(f"New size: ({img.size[0]} x {img.size[1]})")
+def initializeImage(img_file, input_folder):
+    # Image path
+    img = Image.open(f"{input_folder}/{img_file}")
 
-# Represent image as an array
-img = img.convert('L')
-img = np.array(img)
+    # Resize for large images
+    if img.size[0] > 2000 or img.size[1] > 2000:
+        new_size = 500.0  # px
+        ratio = new_size / max(img.size[0], img.size[1])
+        print(f"Reducing by factor of {1./ratio:.2g}")
+        img = img.resize((int(img.size[0] * ratio), int(img.size[1] * ratio)), Image.ADAPTIVE)
+        print(f"New size: ({img.size[0]} x {img.size[1]})")
 
-# Defining Functions
+    # Represent image as an array
+    img = img.convert('L')
+    img = np.array(img)
 
-# Transforms an array into a convolutional kernel
-def make_kernel(a):
-    a = np.asarray(a)
-    a = a.reshape(list(a.shape) + [1, 1])
-    return tf.constant(a, dtype=tf.float32)
+    return img
 
-# Convolutional operation
-def simple_conv(x, k):
-    x = tf.expand_dims(tf.expand_dims(x, 0), -1)
-    y = tf.nn.depthwise_conv2d(x, k, strides=[1, 1, 1, 1], padding='SAME')
-    return y[0, :, :, 0]
+def houghTransform(img):
+    # Making the image compatible with TensorFlow
+    A = tf.cast(tf.Variable(img), tf.float32)
 
-# Compute x gradient
-def gradientx(x):
-    gradient_x = make_kernel([[-1., 0., 1.],
-                              [-1., 0., 1.],
-                              [-1., 0., 1.]])
-    return simple_conv(x, gradient_x)
+    # Calculate gradients
+    Dx = hf.gradientx(A)
+    Dy = hf.gradienty(A)
 
-# Compute y gradient
-def gradienty(x):
-    gradient_y = make_kernel([[-1., -1., -1.],[0.,0.,0.], [1., 1., 1.]])
-    return simple_conv(x, gradient_y)
+    # Convert Dx and Dy tensors to NumPy arrays using .numpy()
+    Dx_array = Dx.numpy()
+    Dy_array = Dy.numpy()
 
-# Find corners in an array
-def corners(x):
-    chess_corner = make_kernel([[-1., 0, 1],[0., 0., 0.], [1.,0, -1]])
-    return simple_conv(x, chess_corner)
+    # Clip Dx and Dy values to specified ranges
+    Dx_pos = tf.clip_by_value(Dx, 0., 255., name="dx_positive")
+    Dx_neg = tf.clip_by_value(Dx, -255., 0., name='dx_negative')
+    Dy_pos = tf.clip_by_value(Dy, 0., 255., name="dy_positive")
+    Dy_neg = tf.clip_by_value(Dy, -255., 0., name='dy_negative')
 
-# Making the image compatible with TensorFlow
-A = tf.cast(tf.Variable(img), tf.float32)
+    # Compute Hough Transform for Dx and Dy
+    hough_Dx = tf.reduce_sum(Dx_pos, axis=0) * tf.reduce_sum(-Dx_neg, axis=0) / (img.shape[0] * img.shape[0])
+    hough_Dy = tf.reduce_sum(Dy_pos, axis=1) * tf.reduce_sum(-Dy_neg, axis=1) / (img.shape[1] * img.shape[1])
 
-# Calculate gradients
+    # Plot Hough Transform results
+    fig, (ax1, ax2) = plt.subplots(1, 2, sharey=True, figsize=(15, 5))
 
-Dx = gradientx(A)
-Dy = gradienty(A)
+    # Arbitrarily choose a threshold
+    hough_Dx_thresh = tf.reduce_max(hough_Dx) * 3 / 5
+    hough_Dy_thresh = tf.reduce_max(hough_Dy) * 3 / 5
 
-# Convert Dx and Dy tensors to NumPy arrays using .numpy()
-Dx_array = Dx.numpy()
-Dy_array = Dy.numpy()
-
-# Clip Dx and Dy values to specified ranges
-Dx_pos = tf.clip_by_value(Dx, 0., 255., name="dx_positive")
-Dx_neg = tf.clip_by_value(Dx, -255., 0., name='dx_negative')
-Dy_pos = tf.clip_by_value(Dy, 0., 255., name="dy_positive")
-Dy_neg = tf.clip_by_value(Dy, -255., 0., name='dy_negative')
-
-# Compute Hough Transform for Dx and Dy
-hough_Dx = tf.reduce_sum(Dx_pos, axis=0) * tf.reduce_sum(-Dx_neg, axis=0) / (img.shape[0] * img.shape[0])
-hough_Dy = tf.reduce_sum(Dy_pos, axis=1) * tf.reduce_sum(-Dy_neg, axis=1) / (img.shape[1] * img.shape[1])
-
-# Plot Hough Transform results
-fig, (ax1, ax2) = plt.subplots(1, 2, sharey=True, figsize=(15, 5))
-
-# Arbitrarily choose a threshold
-hough_Dx_thresh = tf.reduce_max(hough_Dx) * 3 / 5
-hough_Dy_thresh = tf.reduce_max(hough_Dy) * 3 / 5
+    return hough_Dx, hough_Dy, hough_Dx_thresh, hough_Dy_thresh
 
 # Check if line distances are consistent
 def checkMatch(lineset):
@@ -158,27 +136,28 @@ def getChessLines(hdx, hdy, hdx_thresh, hdy_thresh):
 
     return lines_x, lines_y, is_match
 
-# Get chess lines
-lines_x, lines_y, is_match = getChessLines(hough_Dx.numpy().flatten(), \
-                                           hough_Dy.numpy().flatten(), \
-                                           hough_Dx_thresh.numpy(), \
-                                           hough_Dy_thresh.numpy())
 
-def getChessTiles(a, lines_x, lines_y):
-    """Split up input grayscale array into 64 tiles stacked in a 3D matrix using the chess linesets"""
+def getChessTiles(a):
+    hdx, hdy, hdx_thresh, hdy_thresh = houghTransform(a)
+    lines_x, lines_y, is_match = getChessLines(hdx, hdy, hdx_thresh, hdy_thresh)
+    
+    # If it fails, do not let it into our dataset
+    if(not is_match):
+        return False
+    
     stepx = np.round(np.mean(np.diff(lines_x)))
     stepy = np.round(np.mean(np.diff(lines_y)))
 
     # Pad edges as needed to fill out chessboard
     padl_x = padr_x = padl_y = padr_y = 0
     if(lines_x[0] - stepx < 0):
-        padl_x = np.abs(lines_x[0] - stepx)
+        padl_x = int(np.abs(lines_x[0] - stepx))
     if(lines_x[-1] + stepx > a.shape[1]-1):
-        padr_x = np.abs(lines_x[-1] + stepx - a.shape[1])
+        padr_x = int(np.abs(lines_x[-1] + stepx - a.shape[1]))
     if(lines_y[0] - stepy < 0):
-        padl_y = np.abs(lines_y[0] - stepy)
+        padl_y = int(np.abs(lines_y[0] - stepy))
     if(lines_y[-1] + stepx > a.shape[0]-1):
-        padr_y = np.abs(lines_y[-1] + stepy - a.shape[0])
+        padr_y = int(np.abs(lines_y[-1] + stepy - a.shape[0]))
 
     # New padded array
     a_padded = np.pad(a, ((padl_y, padr_y), (padl_x, padr_x)), mode='edge')
@@ -205,30 +184,26 @@ def getChessTiles(a, lines_x, lines_y):
 
             # Store the square in the matrix
             squares[:, :, (7 - j) * 8 + i] = square
-            print("i: " + str(i))
-            print("j: " + str(j))
-            print("index: " + str((7-j)*8+i) + "\n")
-
     return squares
 
-if is_match:
-    squares = getChessTiles(img, lines_x, lines_y)
-else:
-    print("Number of lines not equal to 7")
+def generateTiles(img_file, input_folder, output_folder):
+    img = initializeImage(img_file, input_folder)
+    squares = getChessTiles(img)
+    
+    # When getChessTiles fails, do not let it into our dataset
+    if squares == False:
+        return
 
-img_save_dir = f"test_images_output/squares_{img_file[:-4]}"
-
-if not is_match:
-    print("No squares to save")
-else:
-    if not os.path.exists(img_save_dir):
-        os.makedirs(img_save_dir)
-        print(f"Created dir {img_save_dir}")
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
 
     for i in range(64):
-        sqr_filename = f"{img_save_dir}/{img_file[:-4]}_{chr(ord('a') + i % 8)}{i // 8 + 1}.png"
-        if i % 8 == 0:
-            print(f"#{i}: saving {sqr_filename}...")
-
+        sqr_filename = f"{output_folder}/{img_file[:-4]}_{chr(ord('a') + i % 8)}{i // 8 + 1}.png"
         # Make resized 32x32 image from matrix and save
-        Image.fromarray(squares[:, :, i]).resize((32, 32), Image.ADAPTIVE).save(sqr_filename)
+        img = remove(Image.fromarray(squares[:, :, i]).resize((32, 32), Image.ADAPTIVE))
+
+        img.save(sqr_filename)
+        print(i)
+
+# For debugging
+#generateTiles('image3.png','test_images','test_images_output/image3')
