@@ -18,7 +18,7 @@ class Home extends StatefulWidget {
 class _HomeState extends State<Home> {
   // Upload Function
   File? selectedImage;
-  String? message = "";
+  String? fen = "";
   bool loading = false;
 
   uploadImage() async{
@@ -37,7 +37,7 @@ class _HomeState extends State<Home> {
     final response = await request.send();
     http.Response res = await http.Response.fromStream(response);
     final resJson = jsonDecode(res.body);
-    message = resJson['message'];
+    fen = resJson['message'];
     setState((){loading = false;});
   }
 
@@ -128,7 +128,7 @@ class _HomeState extends State<Home> {
         movePiece(row, col);
       }
 
-      validMoves = calculateRawValidMoves(selectedRow, selectedCol, selectedPiece);
+      validMoves = calculateRealValidMoves(selectedRow, selectedCol, selectedPiece);
     });
 
 
@@ -264,7 +264,7 @@ class _HomeState extends State<Home> {
   }
 
   // Calculate Real Valid Moves
-  List<List<int>> calculateRealValidMoves(int row, int col, ChessPiece? piece, bool checkSimulation){
+  List<List<int>> calculateRealValidMoves(int row, int col, ChessPiece? piece){
     List<List<int>> realValidMoves = [];
     List<List<int>> candidateMoves = calculateRawValidMoves(row, col, piece);
 
@@ -274,19 +274,14 @@ class _HomeState extends State<Home> {
     }
 
     // Filter out ones resulting in check
-    if(checkSimulation) {
-      for (var move in candidateMoves) {
-        int endRow = move[0];
-        int endCol = move[1];
+    for (var move in candidateMoves) {
+      int endRow = move[0];
+      int endCol = move[1];
 
-        // Simulate future move to see if safe
-        if(simulatedMoveIsSafe(piece, row, col, endRow, endCol)) {
-          realValidMoves.add(move);
-        }
+      // Simulate future move to see if safe
+      if(simulatedMoveIsSafe(piece, row, col, endRow, endCol)) {
+        realValidMoves.add(move);
       }
-    }
-    else{
-      realValidMoves = candidateMoves;
     }
 
     return realValidMoves;
@@ -296,6 +291,7 @@ class _HomeState extends State<Home> {
   bool simulatedMoveIsSafe(ChessPiece piece, int startRow, int startCol, int endRow, int endCol) {
     // Save current state
     ChessPiece? originalDestinationPiece = board[endRow][endCol];
+
     // If piece is king, save current position and update to new one
     List<int>? originalKingPosition;
     if (piece.type == ChessPieceType.king) {
@@ -308,6 +304,7 @@ class _HomeState extends State<Home> {
         blackKingPosition = [endRow, endCol];
       }
     }
+
     // Simulate
     board[endRow][endCol] = piece;
     board[startRow][startCol] = null;
@@ -346,17 +343,30 @@ class _HomeState extends State<Home> {
       validMoves = [];
     });
 
+    if (isCheckmate(!isWhiteTurn)) {
+      showDialog(
+        context: context, 
+        builder: (context) => AlertDialog(
+          title: const Text("CHECK MATE"),
+          actions: [
+            TextButton(onPressed: resetGame, child: const Text("Play Again")),
+          ],
+        )
+      );
+    }
+
     isWhiteTurn = !isWhiteTurn;
   }
 
   // Is King in Check
   bool isKingInCheck(bool isWhiteKing) {
+    
     List<int> kingPosition = isWhiteKing ? whiteKingPosition : blackKingPosition;
 
     for (int i = 0; i < 8; i ++){
       for (int j = 0; j < 8; j++){
         if (board[i][j] != null && board[i][j]!.isWhite != isWhiteKing) {
-          List<List<int>> pieceValidMoves = calculateRealValidMoves(i, j, board[i][j], true);
+          List<List<int>> pieceValidMoves = calculateRawValidMoves(i, j, board[i][j]);
           if (pieceValidMoves.any((move) => move[0] == kingPosition[0] && move[1] == kingPosition[1])){
             return true;
           }
@@ -365,6 +375,33 @@ class _HomeState extends State<Home> {
     }
     return false;
   } 
+
+  // Is it Checkmate
+  bool isCheckmate(bool isWhiteKing){
+    for (int i = 0; i < 8; i ++) {
+      for (int j = 0; j < 8; j ++) {
+        if (board[i][j] != null && board[i][j]!.isWhite == isWhiteKing) {
+          List<List<int>> validMoves = calculateRealValidMoves(i, j, board[i][j]);
+          if(validMoves.isNotEmpty) return false;
+        }
+      }
+    }
+    return true;
+  }
+  // Set board from FEN
+
+  // Extract FEN from board
+
+  // Reset Game
+  void resetGame() {
+    Navigator.pop(context);
+    _initializeBoard();
+    checkStatus = false;
+    whiteKingPosition = [7, 4];
+    blackKingPosition = [0, 4];
+    isWhiteTurn = true;
+    setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -388,7 +425,7 @@ class _HomeState extends State<Home> {
               height: 150, 
               width: 150, 
               padding: EdgeInsets.all(10), 
-              child: Image.asset('assets/logo.png', color:Colors.teal)
+              child: Image.asset('lib/images/logo.png', color:Colors.teal)
             ),
             Text(
               'SnapChess', 
