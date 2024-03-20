@@ -50,11 +50,6 @@ model = keras.Sequential([
     layers.Dense(12),
 ])
 
-# Normalizing Data
-#ds_train = ds_train.map(lambda x, y: (x / 255.0, y))
-#ds_validation = ds_validation.map(lambda x, y: (x / 255.0, y))
-
-
 
 model.compile(
     loss=keras.losses.CategoricalCrossentropy(from_logits=True), # Using categorical crossentropy loss model 

@@ -88,7 +88,7 @@ def is_empty_tile(img):
     std_dev = np.std(img_array)
     
     # Check if the standard deviation is below arbitrary threshold
-    if std_dev < 25:
+    if std_dev < 20:
         return True
     else:
         return False

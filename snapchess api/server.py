@@ -1,7 +1,9 @@
 from flask import Flask, request, jsonify
 import os
-import werkzeug
 import board_recognition as br
+from PIL import Image
+from werkzeug.utils import secure_filename
+import werkzeug
 
 app = Flask(__name__)
 
@@ -17,6 +19,7 @@ def upload():
         os.remove(filepath)
 
         return jsonify({"message": result})
+    
 
 if __name__ == "__main__":
     app.run(debug=True, port=4000)

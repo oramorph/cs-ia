@@ -39,12 +39,7 @@ def getfen(img_file, img_folder):
 
 
     for i in range(64):
-        #grayscale_image = Image.fromarray(tiles_preprocessed[:, :, i]).convert('L')
-        #resized_image = grayscale_image.resize((32, 32), Image.ADAPTIVE)
-        #img = remove(resized_image)
-        #print(img.shape)
         input_image = Image.fromarray(tiles_preprocessed[:, :, i])
-        img = remove(input_image.resize((32, 32), Image.ADAPTIVE)).convert('L')
 
         # Detect if tile is empty
         if(hf.is_empty_tile(input_image)):
@@ -52,6 +47,7 @@ def getfen(img_file, img_folder):
         
         # Otherwise apply AI model
         else:
+            img = remove(input_image.resize((32, 32), Image.ADAPTIVE)).convert('L')
             # Add a channel dimension to be compatible with model input
             img_with_channel = np.expand_dims(img, axis=0)
 
@@ -71,34 +67,11 @@ def getfen(img_file, img_folder):
         # Save the output image to a file
         output_file = f"{i} {predicted_class} {hf.is_piece_white(input_image)}.jpg"
         output_path = os.path.join(output_directory, output_file)
-        img.save(output_path)  
+        input_image.save(output_path)  
 
         # Update position
         position += hf.label_to_fen(f"{predicted_class}")
 
     fen = hf.position_to_fen(position)
     return fen
-    
-'''
-# Code for comparing input and output images 
-    fig, axes = plt.subplots(1, 2)
-
-    # Show the input image on the first subplot
-    axes[0].imshow(input_image)
-    axes[0].set_title("Input Image")
-
-    # Show the output image on the second subplot
-    axes[1].imshow(output_image)
-    axes[1].set_title("Output Image")
-
-    # Hide the axes
-    for ax in axes:
-        ax.axis('off')
-    # Adjust layout to prevent overlap
-    plt.tight_layout()
-
-    # Show the plot
-    plt.show()
-    '''
-
     

@@ -25,7 +25,7 @@ class _HomeState extends State<Home> {
     final pickedImage = await ImagePicker().pickImage(source: ImageSource.gallery);
     setState(() {loading = true;}); 
     selectedImage = File(pickedImage!.path);
-    final request = http.MultipartRequest("POST", Uri.parse('https://ae54-139-226-186-28.ngrok-free.app/upload'));
+    final request = http.MultipartRequest("POST", Uri.parse(' https://68a2-139-226-186-28.ngrok-free.app/upload'));
 
     final headers = {"Content-type": "multipart/form-data"};
 
@@ -38,6 +38,7 @@ class _HomeState extends State<Home> {
     http.Response res = await http.Response.fromStream(response);
     final resJson = jsonDecode(res.body);
     fen = resJson['message'];
+    setFEN(fen!);
     setState((){loading = false;});
   }
 
@@ -56,7 +57,8 @@ class _HomeState extends State<Home> {
   List<int> whiteKingPosition = [7, 4];
   List<int> blackKingPosition = [0, 4];
   bool checkStatus = false;
-
+  bool checkMateStatus = false;
+  
   // 2D Array Representing Valid Moves for Current Piece
   List<List<int>> validMoves = [];
 
@@ -335,7 +337,7 @@ class _HomeState extends State<Home> {
     board[selectedRow][selectedCol] = null;
 
     checkStatus = isKingInCheck(!isWhiteTurn);
-
+    checkMateStatus = isCheckmate(!isWhiteTurn);
     setState(() {
       selectedPiece = null;
       selectedRow = -1;
@@ -388,8 +390,36 @@ class _HomeState extends State<Home> {
     }
     return true;
   }
-  // Set board from FEN
+  // Set board to FEN
 
+  void setFEN(String fen) {
+    int row = 0;
+    int col = 0;
+    for(int i = 0; i < fen.length; i ++) {
+      String char = fen[i];
+      if (char == '/') {
+        row++;
+        col = 0;
+      }
+      else if(RegExp(r'\d').hasMatch(char)) { // Finding empty tiles
+        for (int j = 0; j < int.parse(char); j++) {
+          board[row][col] = null;
+          col++;
+        }
+      }
+      else {
+        board[row][col] = charToPiece(char);
+        col++;
+      }
+    }
+
+    setState(() {
+      selectedPiece = null;
+      selectedRow = -1;
+      selectedCol = -1;
+      validMoves = [];
+    });
+  }
   // Extract FEN from board
 
   // Reset Game
@@ -397,6 +427,7 @@ class _HomeState extends State<Home> {
     Navigator.pop(context);
     _initializeBoard();
     checkStatus = false;
+    checkMateStatus = false;
     whiteKingPosition = [7, 4];
     blackKingPosition = [0, 4];
     isWhiteTurn = true;
@@ -422,9 +453,9 @@ class _HomeState extends State<Home> {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Container(
-              height: 150, 
-              width: 150, 
-              padding: EdgeInsets.all(10), 
+              height: 100, 
+              width: 100, 
+              padding: EdgeInsets.all(20), 
               child: Image.asset('lib/images/logo.png', color:Colors.teal)
             ),
             Text(
@@ -479,7 +510,7 @@ class _HomeState extends State<Home> {
                 ),
               ),
             ), // Chessboard
-            Text(checkStatus ? "CHECK!" : ""),
+            Text(checkMateStatus ? "CHECKMATE!" : checkStatus ? "CHECK!" : ""),
             loading ? Container(
             width: MediaQuery.of(context).size.width * 0.8, // Setting progress bar width
             decoration: BoxDecoration(
