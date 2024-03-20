@@ -25,7 +25,7 @@ class _HomeState extends State<Home> {
     final pickedImage = await ImagePicker().pickImage(source: ImageSource.gallery);
     setState(() {loading = true;}); 
     selectedImage = File(pickedImage!.path);
-    final request = http.MultipartRequest("POST", Uri.parse(' https://68a2-139-226-186-28.ngrok-free.app/upload'));
+    final request = http.MultipartRequest("POST", Uri.parse('https://68a2-139-226-186-28.ngrok-free.app/upload'));
 
     final headers = {"Content-type": "multipart/form-data"};
 
