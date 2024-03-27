@@ -10,7 +10,11 @@ class ChessPiece {
     required this.type,
     required this.isWhite,
   }){
+    imagePath = getImagePath(type, isWhite);
+  }
+
+  String getImagePath(type, isWhite){
     final strippedType = type.toString().replaceFirst('ChessPieceType.', ''); // Strip the prefix
-    imagePath = 'lib/images/${isWhite ? 'white' : 'black'}_$strippedType.png';
+    return 'lib/images/${isWhite ? 'white' : 'black'}_$strippedType.png';
   }
 }

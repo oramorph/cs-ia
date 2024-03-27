@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:snapchess/components/piece.dart';
 import 'package:snapchess/components/square.dart';
 import 'package:snapchess/helper/helper_functions.dart';
+import 'package:snapchess/components/boardstack.dart';
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -15,17 +16,54 @@ class Home extends StatefulWidget {
   State<Home> createState() => _HomeState();
 }
 
+Future<void> showPlayOptionsDialog(BuildContext context, Function(int, bool) setSelectedColorAndTurn) async {
+  return showDialog<void>(
+    context: context,
+    barrierDismissible: false, // user must tap button!
+    builder: (BuildContext dialogContext) {
+      return AlertDialog(
+        title: const Text('Choose your color'),
+        content: const SingleChildScrollView(
+          child: ListBody(
+            children: <Widget>[
+              Text('Are you playing as black or white?'),
+            ],
+          ),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () {
+              setSelectedColorAndTurn(-1, false); // Update selectedColor using the callback function
+              Navigator.of(dialogContext).pop(); // Close the dialog
+            },
+            child: const Text('PLAY AS BLACK'),
+          ),
+          TextButton(
+            onPressed: () {
+              setSelectedColorAndTurn(1, true); // Update selectedColor using the callback function
+              Navigator.of(dialogContext).pop('White');
+            },
+            child: const Text('PLAY AS WHITE'),
+          ),
+        ],
+      );
+    },
+  );
+}
+
 class _HomeState extends State<Home> {
   // Upload Function
   File? selectedImage;
   String? fen = "";
   bool loading = false;
+  int selectedColor = 1; // 1 if from perspective of white, -1 if from perspective of black
+  BoardStack<List<List<ChessPiece?>>> boardStack = BoardStack();
 
   uploadImage() async{
     final pickedImage = await ImagePicker().pickImage(source: ImageSource.gallery);
     setState(() {loading = true;}); 
     selectedImage = File(pickedImage!.path);
-    final request = http.MultipartRequest("POST", Uri.parse('https://68a2-139-226-186-28.ngrok-free.app/upload'));
+    final request = http.MultipartRequest("POST", Uri.parse('https://cc12-139-226-186-251.ngrok-free.app/upload'));
 
     final headers = {"Content-type": "multipart/form-data"};
 
@@ -39,7 +77,14 @@ class _HomeState extends State<Home> {
     final resJson = jsonDecode(res.body);
     fen = resJson['message'];
     setFEN(fen!);
-    setState((){loading = false;});
+
+    await showPlayOptionsDialog(context, (int color, bool turn) {
+      setState(() {
+        selectedColor = color; // Update selectedColor using setState
+        isWhiteTurn = turn;
+        loading = false;
+      });
+    });
   }
 
   // 2D Array Representing Chessboard
@@ -146,7 +191,7 @@ class _HomeState extends State<Home> {
     }
 
     // When Selecting a Piece
-    int direction = piece.isWhite ? -1 : 1;
+    int direction = piece.isWhite ? -1 * selectedColor : selectedColor;
 
     switch (piece.type) {
       case ChessPieceType.pawn:
@@ -325,19 +370,86 @@ class _HomeState extends State<Home> {
 
     return !kingInCheck;
   }
-  
+
+  // Promote Pawn
+  void promotePawn(bool color, int newRow, int newCol, ChessPieceType type) {
+    setState(() {
+      board[newRow][newCol] = ChessPiece(type: type, isWhite: color);
+    });
+
+    Navigator.of(context).pop(); 
+  }
+
+  // Save Current State
+  void saveCurrentState(){
+    List<List<ChessPiece?>> currentBoardState = [];
+    for (int i = 0; i < 8; i++) {
+      List<ChessPiece?> row = [];
+      for (int j = 0; j < 8; j++) {
+        row.add(board[i][j]);
+      }
+      currentBoardState.add(row);
+    }
+    boardStack.push(currentBoardState);
+  }
+
   // Move Piece
   void movePiece(int newRow, int newCol) {
-    // Check if piece being moved is a king
-    if (selectedPiece != null && selectedPiece!.type == ChessPieceType.king){
-      selectedPiece!.isWhite ? whiteKingPosition = [newRow, newCol] : blackKingPosition = [newRow, newCol];
+    saveCurrentState();
+
+    if (selectedPiece != null){
+      // Check if piece being moved is a king
+      if (selectedPiece!.type == ChessPieceType.king) {
+          selectedPiece!.isWhite ? whiteKingPosition = [newRow, newCol] : blackKingPosition = [newRow, newCol];
+      }
+      // If pawn being moved to back rank, promote
+      if (selectedPiece!.type == ChessPieceType.pawn && newRow % 7 == 0) {
+        bool color = selectedPiece!.isWhite;
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Promote Pawn'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ElevatedButton(
+                  onPressed: () {
+                    promotePawn(color, newRow, newCol, ChessPieceType.knight);
+                  },
+                  child: const Text('HELO'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    promotePawn(selectedPiece!.isWhite, newRow, newCol, ChessPieceType.queen);
+                  },
+                  child: const Text('Bishop'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    promotePawn(selectedPiece!.isWhite, newRow, newCol, ChessPieceType.queen);
+                  },
+                  child: const Text('Rook'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    promotePawn(selectedPiece!.isWhite, newRow, newCol, ChessPieceType.queen);
+                  },
+                  child: const Text('Queen'),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
     }
 
+    
     board[newRow][newCol] = selectedPiece;
     board[selectedRow][selectedCol] = null;
 
     checkStatus = isKingInCheck(!isWhiteTurn);
     checkMateStatus = isCheckmate(!isWhiteTurn);
+
     setState(() {
       selectedPiece = null;
       selectedRow = -1;
@@ -345,19 +457,27 @@ class _HomeState extends State<Home> {
       validMoves = [];
     });
 
-    if (isCheckmate(!isWhiteTurn)) {
-      showDialog(
-        context: context, 
-        builder: (context) => AlertDialog(
-          title: const Text("CHECK MATE"),
-          actions: [
-            TextButton(onPressed: resetGame, child: const Text("Play Again")),
-          ],
-        )
-      );
-    }
-
     isWhiteTurn = !isWhiteTurn;
+  }
+
+  void undoMove() {
+    if (boardStack.isNotEmpty) {
+      // Restore the board to the previous state
+      if (boardStack.isNotEmpty) {
+        List<List<ChessPiece?>> previousBoardState = boardStack.pop();
+        for (int i = 0; i < 8; i++) {
+          for (int j = 0; j < 8; j++) {
+            board[i][j] = previousBoardState[i][j];
+          }
+        }
+      }
+
+      // Update the UI
+      setState(() {});
+    }
+    isWhiteTurn = !isWhiteTurn;
+    checkStatus = isKingInCheck(!isWhiteTurn);
+    checkMateStatus = isCheckmate(!isWhiteTurn);
   }
 
   // Is King in Check
@@ -420,19 +540,39 @@ class _HomeState extends State<Home> {
       validMoves = [];
     });
   }
-  // Extract FEN from board
 
   // Reset Game
   void resetGame() {
-    Navigator.pop(context);
     _initializeBoard();
+    selectedPiece = null;
     checkStatus = false;
     checkMateStatus = false;
+    selectedColor = 1;
     whiteKingPosition = [7, 4];
     blackKingPosition = [0, 4];
     isWhiteTurn = true;
     setState(() {});
   }
+
+  // Rotate Board
+  void rotateBoard() {
+    List<List<ChessPiece?>> rotatedBoard = List.generate(8, (row) => List.filled(8, null));
+    for (int row = 0; row < 8; row++) {
+      for (int col = 0; col < 8; col++) {
+        // Calculate the new row and column indices for the rotated board
+        int rotatedRow = 7 - row;
+        int rotatedCol = 7 - col;
+
+        // Copy the piece from the original board to the rotated board
+        rotatedBoard[rotatedRow][rotatedCol] = board[row][col];
+      }
+    }
+    saveCurrentState();
+    setState(() {
+      board = rotatedBoard;
+    });
+  }
+  
 
   @override
   Widget build(BuildContext context) {
@@ -465,6 +605,38 @@ class _HomeState extends State<Home> {
                 fontWeight: FontWeight.bold)
             ),
             SizedBox(height:10), 
+            Row(
+              children: [
+                // Undo Button
+                Padding(
+                  padding: EdgeInsets.only(left: 20), // Move inward by 20 pixels
+                  child: IconButton(
+                    onPressed: undoMove,
+                    icon: Icon(Icons.undo),
+                    tooltip: 'Undo',
+                    color: Colors.teal, // Set color to teal
+                  ),
+                ),
+                // Rotate Board Button
+                IconButton(
+                  onPressed: rotateBoard,
+                  icon: Icon(Icons.rotate_right),
+                  tooltip: 'Rotate Board',
+                  color: Colors.teal, // Set color to teal
+                ),
+                Spacer(), // Spacer to push Reset Button to the right
+                // Reset Button
+                Padding(
+                  padding: EdgeInsets.only(right: 20), // Move inward by 20 pixels
+                  child: IconButton(
+                    onPressed: resetGame,
+                    icon: Icon(Icons.refresh),
+                    tooltip: 'Reset Game',
+                    color: Colors.teal, // Set color to teal
+                  ),
+                ),
+              ],
+            ), // Undo, Rotate, and Reset Buttons
             Expanded(
               child: Container(
                 width: MediaQuery.of(context).size.width * 0.9,
@@ -510,7 +682,19 @@ class _HomeState extends State<Home> {
                 ),
               ),
             ), // Chessboard
-            Text(checkMateStatus ? "CHECKMATE!" : checkStatus ? "CHECK!" : ""),
+            Container(
+              margin: EdgeInsets.only(top: 10), // Add margin to create space between the chessboard and the text
+              child: Padding(
+                padding: EdgeInsets.only(bottom: 10), // Add padding below the text
+                child: Text(
+                  checkMateStatus ? "CHECKMATE!" : checkStatus ? "CHECK!" : "",
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
             loading ? Container(
             width: MediaQuery.of(context).size.width * 0.8, // Setting progress bar width
             decoration: BoxDecoration(
@@ -535,7 +719,7 @@ class _HomeState extends State<Home> {
                   ),
                   onPressed: uploadImage,
                   child: Text(
-                    'Upload from Gallery',
+                    'Upload Image',
                     style: GoogleFonts.roboto(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
