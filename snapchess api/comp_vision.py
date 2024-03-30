@@ -137,8 +137,8 @@ def getChessLines(hdx, hdy, hdx_thresh, hdy_thresh):
     return lines_x, lines_y, is_match
 
 
-def getChessTiles(a):
-    hdx, hdy, hdx_thresh, hdy_thresh = houghTransform(a)
+def getChessTiles(img):
+    hdx, hdy, hdx_thresh, hdy_thresh = houghTransform(img)
     lines_x, lines_y, is_match = getChessLines(hdx, hdy, hdx_thresh, hdy_thresh)
     
     # If it fails, do not let it into our dataset
@@ -152,15 +152,15 @@ def getChessTiles(a):
     padl_x = padr_x = padl_y = padr_y = 0
     if(lines_x[0] - stepx < 0):
         padl_x = int(np.abs(lines_x[0] - stepx))
-    if(lines_x[-1] + stepx > a.shape[1]-1):
-        padr_x = int(np.abs(lines_x[-1] + stepx - a.shape[1]))
+    if(lines_x[-1] + stepx > img.shape[1]-1):
+        padr_x = int(np.abs(lines_x[-1] + stepx - img.shape[1]))
     if(lines_y[0] - stepy < 0):
         padl_y = int(np.abs(lines_y[0] - stepy))
-    if(lines_y[-1] + stepx > a.shape[0]-1):
-        padr_y = int(np.abs(lines_y[-1] + stepy - a.shape[0]))
+    if(lines_y[-1] + stepx > img.shape[0]-1):
+        padr_y = int(np.abs(lines_y[-1] + stepy - img.shape[0]))
 
     # New padded array
-    a_padded = np.pad(a, ((padl_y, padr_y), (padl_x, padr_x)), mode='edge')
+    a_padded = np.pad(img, ((padl_y, padr_y), (padl_x, padr_x)), mode='edge')
     setsx = np.hstack([lines_x[0] - stepx, lines_x, lines_x[-1] + stepx]).astype(int) + padl_x
     setsy = np.hstack([lines_y[0] - stepy, lines_y, lines_y[-1] + stepy]).astype(int) + padl_y
 
@@ -205,5 +205,3 @@ def generateTiles(img_file, input_folder, output_folder):
         img.save(sqr_filename)
         print(i)
 
-# For debugging
-#generateTiles('image3.png','test_images','test_images_output/image3')

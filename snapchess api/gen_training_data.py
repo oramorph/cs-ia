@@ -84,7 +84,7 @@ input_chessboard_folder = 'training_data_boards'
 output_tile_folder = 'training_data_tiles'
 
 for x in os.listdir(input_chessboard_folder):
-    comp_vision.generateTiles(x, input_chessboard_folder, output_tile_folder)
+  comp_vision.generateTiles(x, input_chessboard_folder, output_tile_folder)
 
 # Sort images with their labels
 for x in os.listdir(output_tile_folder):

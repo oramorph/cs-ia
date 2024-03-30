@@ -177,8 +177,6 @@ class _HomeState extends State<Home> {
 
       validMoves = calculateRealValidMoves(selectedRow, selectedCol, selectedPiece);
     });
-
-
   }
 
   // Calculate Raw Valid Moves
@@ -339,7 +337,7 @@ class _HomeState extends State<Home> {
     // Save current state
     ChessPiece? originalDestinationPiece = board[endRow][endCol];
 
-    // If piece is king, save current position and update to new one
+    // If piece is king, save current position and update to new one for checkStatus/checkMateStatus to work correctly
     List<int>? originalKingPosition;
     if (piece.type == ChessPieceType.king) {
       if(piece.isWhite){
@@ -463,12 +461,10 @@ class _HomeState extends State<Home> {
   void undoMove() {
     if (boardStack.isNotEmpty) {
       // Restore the board to the previous state
-      if (boardStack.isNotEmpty) {
-        List<List<ChessPiece?>> previousBoardState = boardStack.pop();
-        for (int i = 0; i < 8; i++) {
-          for (int j = 0; j < 8; j++) {
-            board[i][j] = previousBoardState[i][j];
-          }
+      List<List<ChessPiece?>> previousBoardState = boardStack.pop();
+      for (int i = 0; i < 8; i++) {
+        for (int j = 0; j < 8; j++) {
+          board[i][j] = previousBoardState[i][j];
         }
       }
 
@@ -695,7 +691,8 @@ class _HomeState extends State<Home> {
                 ),
               ),
             ),
-            loading ? Container(
+            loading ? 
+            Container(
             width: MediaQuery.of(context).size.width * 0.8, // Setting progress bar width
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(10), // Rounded edges
