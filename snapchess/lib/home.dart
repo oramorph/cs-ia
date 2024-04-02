@@ -198,7 +198,7 @@ class _HomeState extends State<Home> {
           candidateMoves.add([row + direction, col]);
         }
         // Two moves forward on first move
-        if ((row == 1 && !piece.isWhite) || (row == 6 && piece.isWhite)){
+        if ((row == 1 && !piece.isWhite && selectedColor == 1) || (row == 6 && piece.isWhite && selectedColor == 1) || (row == 6 && !piece.isWhite && selectedColor == -1) || (row == 1 && piece.isWhite && selectedColor == -1)){
           if (isInBoard(row + 2 * direction, col) && board[row + 2 * direction][col] == null && board[row + direction][col] == null){
             candidateMoves.add([row + 2 * direction, col]);
           }
@@ -565,6 +565,7 @@ class _HomeState extends State<Home> {
     }
     saveCurrentState();
     setState(() {
+      selectedColor = -1 * selectedColor;
       board = rotatedBoard;
     });
   }
